@@ -1,0 +1,604 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Polyglot Minutes — AI Meeting Summarizer</title>
+<style>
+  :root {
+    --bg:       #1e1f2e;
+    --surface:  #272839;
+    --card:     #2f3147;
+    --border:   #3d3f5c;
+    --accent:   #7c6af7;
+    --accent2:  #5e57cc;
+    --text:     #e8e9f3;
+    --muted:    #8b8daa;
+    --hi:       #ef4444;
+    --hi-bg:    #3f1c1c;
+    --med:      #f59e0b;
+    --med-bg:   #3d2e10;
+    --lo:       #22c55e;
+    --lo-bg:    #153022;
+    --radius:   14px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Inter', system-ui, Arial, sans-serif;
+    min-height: 100vh;
+    line-height: 1.6;
+  }
+
+  .page { max-width: 860px; margin: 0 auto; padding: 48px 20px 80px; }
+
+  /* Header */
+  header { text-align: center; margin-bottom: 48px; }
+  header h1 { font-size: 2.6rem; font-weight: 800; color: var(--text); letter-spacing: -0.02em; }
+  header h1 span { color: var(--accent); }
+  header p  { color: var(--muted); margin-top: 8px; font-size: 1.05rem; }
+
+  /* Status bar */
+  #status-bar {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 10px 18px;
+    margin-bottom: 28px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 0.92rem;
+    color: var(--muted);
+  }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); flex-shrink: 0; }
+  .dot.ok  { background: var(--lo); }
+  .dot.warn{ background: var(--med); }
+
+  /* Upload */
+  .upload-box {
+    background: var(--surface);
+    border: 2px dashed var(--border);
+    border-radius: 20px;
+    padding: 52px 32px;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color 0.2s, background 0.2s;
+    margin-bottom: 20px;
+  }
+  .upload-box:hover, .upload-box.drag { border-color: var(--accent); background: var(--card); }
+  .upload-box svg { color: var(--accent); margin-bottom: 16px; }
+  .upload-box h3 { font-size: 1.2rem; font-weight: 700; margin-bottom: 6px; }
+  .upload-box p  { color: var(--muted); font-size: 0.95rem; }
+  #file-input { display: none; }
+  #file-chip {
+    display: none;
+    align-items: center;
+    gap: 10px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 16px;
+    margin-bottom: 20px;
+    font-size: 0.95rem;
+    color: var(--text);
+  }
+  #file-chip svg { color: var(--accent); flex-shrink: 0; }
+  #file-chip .size { color: var(--muted); margin-left: auto; }
+
+  /* Buttons */
+  .btn-row { display: flex; gap: 14px; flex-wrap: wrap; }
+  .btn {
+    flex: 1; min-width: 160px;
+    padding: 14px 24px;
+    border-radius: var(--radius);
+    border: none;
+    font-size: 1rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: opacity 0.2s, background 0.2s;
+  }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .btn-primary { background: var(--accent); color: #fff; }
+  .btn-primary:hover:not(:disabled) { background: var(--accent2); }
+  .btn-secondary {
+    background: var(--surface);
+    color: var(--text);
+    border: 1px solid var(--border);
+  }
+  .btn-secondary:hover:not(:disabled) { border-color: var(--accent); }
+
+  /* Progress */
+  #progress {
+    display: none;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 24px;
+    margin-top: 24px;
+  }
+  .steps { display: flex; flex-direction: column; gap: 12px; }
+  .step {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 0.97rem;
+    color: var(--muted);
+  }
+  .step.active { color: var(--text); }
+  .step.done   { color: var(--lo); }
+  .step-icon { width: 24px; height: 24px; border-radius: 50%; background: var(--border); display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 0.8rem; }
+  .step.active .step-icon { background: var(--accent); animation: pulse 1.2s ease-in-out infinite; }
+  .step.done   .step-icon { background: var(--lo); }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.5} }
+
+  /* Error */
+  #error-box {
+    display: none;
+    background: var(--hi-bg);
+    border: 1px solid var(--hi);
+    border-radius: var(--radius);
+    padding: 16px 20px;
+    margin-top: 20px;
+    color: #fca5a5;
+    font-size: 0.95rem;
+  }
+
+  /* Results */
+  #results { margin-top: 40px; display: flex; flex-direction: column; gap: 24px; }
+
+  .result-title {
+    text-align: center;
+    margin-bottom: 8px;
+  }
+  .result-title h2 {
+    font-size: 1.9rem;
+    font-weight: 800;
+    color: var(--text);
+    letter-spacing: -0.01em;
+  }
+  .result-title .meta {
+    color: var(--muted);
+    font-size: 0.92rem;
+    margin-top: 4px;
+  }
+
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    padding: 28px;
+  }
+  .card-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 18px;
+  }
+  .card-header h3 { font-size: 1.05rem; font-weight: 700; color: var(--text); }
+  .card-header .icon { font-size: 1.2rem; }
+
+  /* Key points */
+  .kp-list { display: flex; flex-direction: column; gap: 10px; }
+  .kp-item {
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+    font-size: 0.97rem;
+  }
+  .kp-item::before {
+    content: '▸';
+    color: var(--accent);
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+
+  /* Summary */
+  .summary-text { font-size: 0.97rem; color: var(--text); line-height: 1.75; white-space: pre-wrap; }
+
+  /* Decisions */
+  .decision-item {
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+    padding: 10px 14px;
+    background: var(--surface);
+    border-radius: 8px;
+    margin-bottom: 8px;
+    font-size: 0.95rem;
+  }
+  .decision-item::before { content: '✓'; color: var(--lo); flex-shrink: 0; }
+
+  /* Action items */
+  .action-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+    padding: 14px;
+    background: var(--surface);
+    border-radius: 10px;
+    margin-bottom: 10px;
+    font-size: 0.96rem;
+  }
+  .action-text { flex: 1; }
+  .action-assignee { color: var(--muted); font-size: 0.85rem; margin-top: 3px; }
+  .badge {
+    padding: 3px 11px;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    font-weight: 700;
+    white-space: nowrap;
+    flex-shrink: 0;
+    margin-top: 2px;
+  }
+  .badge-High   { background: var(--hi-bg);  color: #fca5a5; border: 1px solid var(--hi); }
+  .badge-Medium { background: var(--med-bg); color: #fcd34d; border: 1px solid var(--med); }
+  .badge-Low    { background: var(--lo-bg);  color: #86efac; border: 1px solid var(--lo); }
+
+  /* Transcript */
+  .transcript-text {
+    font-size: 0.93rem;
+    color: var(--muted);
+    line-height: 1.75;
+    white-space: pre-wrap;
+    word-break: break-word;
+    max-height: 340px;
+    overflow-y: auto;
+    padding-right: 6px;
+  }
+  .transcript-text::-webkit-scrollbar { width: 5px; }
+  .transcript-text::-webkit-scrollbar-track { background: transparent; }
+  .transcript-text::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+  /* Export bar */
+  #export-bar {
+    display: none;
+    justify-content: center;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .export-btn {
+    padding: 10px 22px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text);
+    font-size: 0.92rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: border-color 0.2s;
+  }
+  .export-btn:hover { border-color: var(--accent); }
+
+  @media (max-width: 600px) {
+    header h1 { font-size: 2rem; }
+    .btn-row { flex-direction: column; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <header>
+    <h1>Polyglot <span>Minutes</span></h1>
+    <p>Upload a meeting recording — get a transcript, AI summary, key decisions, and action items</p>
+  </header>
+
+  <div id="status-bar">
+    <div class="dot" id="status-dot"></div>
+    <span id="status-text">Checking server...</span>
+  </div>
+
+  <div class="upload-box" id="upload-box">
+    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+      <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
+      <polyline points="17 8 12 3 7 8"/>
+      <line x1="12" y1="3" x2="12" y2="15"/>
+    </svg>
+    <h3>Drop your file here or click to browse</h3>
+    <p>Audio: MP3, WAV, M4A, FLAC, OGG &nbsp;|&nbsp; Video: MP4, MOV, WebM, AVI</p>
+    <input type="file" id="file-input" accept="audio/*,video/*,.mp3,.wav,.m4a,.ogg,.flac,.opus,.mp4,.webm,.mov,.avi,.mkv">
+  </div>
+
+  <div id="file-chip">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <path d="M9 18V5l12-2v13"/>
+      <circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>
+    </svg>
+    <span id="chip-name"></span>
+    <span class="size" id="chip-size"></span>
+  </div>
+
+  <div class="btn-row">
+    <button class="btn btn-primary" id="process-btn" disabled>Process Meeting</button>
+    <button class="btn btn-secondary" id="reset-btn" style="display:none">Upload Another</button>
+  </div>
+
+  <div id="progress">
+    <div class="steps">
+      <div class="step" id="step-upload">
+        <div class="step-icon">1</div>
+        <span>Uploading file</span>
+      </div>
+      <div class="step" id="step-transcribe">
+        <div class="step-icon">2</div>
+        <span>Transcribing with Whisper</span>
+      </div>
+      <div class="step" id="step-analyze">
+        <div class="step-icon">3</div>
+        <span>Analyzing with AI</span>
+      </div>
+    </div>
+  </div>
+
+  <div id="error-box"></div>
+  <div id="export-bar">
+    <button class="export-btn" id="copy-md-btn">Copy Markdown</button>
+    <button class="export-btn" id="copy-transcript-btn">Copy Transcript</button>
+  </div>
+  <div id="results"></div>
+
+</div>
+
+<script>
+const uploadBox   = document.getElementById('upload-box');
+const fileInput   = document.getElementById('file-input');
+const fileChip    = document.getElementById('file-chip');
+const chipName    = document.getElementById('chip-name');
+const chipSize    = document.getElementById('chip-size');
+const processBtn  = document.getElementById('process-btn');
+const resetBtn    = document.getElementById('reset-btn');
+const progress    = document.getElementById('progress');
+const errorBox    = document.getElementById('error-box');
+const resultsEl   = document.getElementById('results');
+const exportBar   = document.getElementById('export-bar');
+const statusDot   = document.getElementById('status-dot');
+const statusText  = document.getElementById('status-text');
+
+let selectedFile = null;
+let lastResult   = null;
+
+// Check server health
+(async () => {
+  try {
+    const r = await fetch('/health');
+    if (!r.ok) throw new Error();
+    const d = await r.json();
+    statusDot.className = 'dot ok';
+    statusText.textContent = `Server ready · Whisper: ${d.whisper_model} · LLM: ${d.ollama_model} (local)`;
+  } catch {
+    statusDot.className = 'dot';
+    statusText.textContent = 'Cannot reach server — start with: python run.py';
+  }
+})();
+
+// File selection
+uploadBox.addEventListener('click', () => fileInput.click());
+fileInput.addEventListener('change', e => selectFile(e.target.files[0]));
+uploadBox.addEventListener('dragover', e => { e.preventDefault(); uploadBox.classList.add('drag'); });
+uploadBox.addEventListener('dragleave', () => uploadBox.classList.remove('drag'));
+uploadBox.addEventListener('drop', e => {
+  e.preventDefault();
+  uploadBox.classList.remove('drag');
+  selectFile(e.dataTransfer.files[0]);
+});
+
+function selectFile(file) {
+  if (!file) return;
+  selectedFile = file;
+  chipName.textContent = file.name;
+  chipSize.textContent = formatSize(file.size);
+  fileChip.style.display = 'flex';
+  processBtn.disabled = false;
+  hideError();
+  resultsEl.innerHTML = '';
+  exportBar.style.display = 'none';
+  lastResult = null;
+}
+
+function formatSize(bytes) {
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+  return (bytes / 1024 / 1024).toFixed(2) + ' MB';
+}
+
+// Reset
+resetBtn.addEventListener('click', () => {
+  selectedFile = null; lastResult = null;
+  fileInput.value = '';
+  fileChip.style.display = 'none';
+  processBtn.disabled = true;
+  processBtn.style.display = '';
+  resetBtn.style.display = 'none';
+  resultsEl.innerHTML = '';
+  exportBar.style.display = 'none';
+  setStep(null);
+  progress.style.display = 'none';
+  hideError();
+});
+
+// Steps
+function setStep(step) {
+  ['step-upload', 'step-transcribe', 'step-analyze'].forEach(id => {
+    document.getElementById(id).className = 'step';
+  });
+  const order = ['step-upload', 'step-transcribe', 'step-analyze'];
+  const idx = order.indexOf(step);
+  order.forEach((id, i) => {
+    const el = document.getElementById(id);
+    if (i < idx)  { el.className = 'step done'; el.querySelector('.step-icon').textContent = '✓'; }
+    if (i === idx) { el.className = 'step active'; }
+  });
+}
+
+// Process
+processBtn.addEventListener('click', async () => {
+  if (!selectedFile) return;
+
+  processBtn.disabled = true;
+  resetBtn.style.display = 'none';
+  resultsEl.innerHTML = '';
+  exportBar.style.display = 'none';
+  hideError();
+  progress.style.display = 'block';
+  setStep('step-upload');
+
+  const formData = new FormData();
+  formData.append('file', selectedFile);
+
+  try {
+    // Step 1: transcribe
+    setStep('step-transcribe');
+    const trResp = await fetch('/api/v1/transcribe', { method: 'POST', body: formData });
+    if (!trResp.ok) {
+      const err = await trResp.json().catch(() => ({ detail: trResp.statusText }));
+      throw new Error(err.detail || `Transcription error ${trResp.status}`);
+    }
+    const trData = await trResp.json();
+
+    // Step 2: analyze
+    setStep('step-analyze');
+    const anResp = await fetch('/api/v1/analyze', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ transcript: trData.transcript }),
+    });
+    if (!anResp.ok) {
+      const err = await anResp.json().catch(() => ({ detail: anResp.statusText }));
+      throw new Error(err.detail || `Analysis error ${anResp.status}`);
+    }
+    const anData = await anResp.json();
+
+    lastResult = { ...trData, ...anData };
+
+    ['step-upload','step-transcribe','step-analyze'].forEach(id => {
+      const el = document.getElementById(id);
+      el.className = 'step done';
+      el.querySelector('.step-icon').textContent = '✓';
+    });
+
+    renderResults(lastResult);
+    exportBar.style.display = 'flex';
+    processBtn.style.display = 'none';
+    resetBtn.style.display = '';
+  } catch (err) {
+    showError(err.message);
+    processBtn.disabled = false;
+    resetBtn.style.display = '';
+  } finally {
+    progress.style.display = 'none';
+  }
+});
+
+function renderResults(d) {
+  const mins  = Math.floor(d.duration / 60);
+  const secs  = Math.floor(d.duration % 60);
+  const dur   = mins ? `${mins}m ${secs}s` : `${secs}s`;
+  const lang  = (d.language || 'unknown').toUpperCase();
+
+  let html = `
+    <div class="result-title">
+      <h2>${esc(d.title)}</h2>
+      <div class="meta">Language: ${lang} &nbsp;|&nbsp; Duration: ${dur}</div>
+    </div>`;
+
+  // Key points
+  if (d.key_points && d.key_points.length) {
+    html += `<div class="card">
+      <div class="card-header"><span class="icon">💡</span><h3>Key Points</h3></div>
+      <div class="kp-list">${d.key_points.map(p => `<div class="kp-item">${esc(p)}</div>`).join('')}</div>
+    </div>`;
+  }
+
+  // Summary
+  if (d.summary) {
+    html += `<div class="card">
+      <div class="card-header"><span class="icon">📋</span><h3>Summary</h3></div>
+      <div class="summary-text">${esc(d.summary)}</div>
+    </div>`;
+  }
+
+  // Decisions
+  if (d.decisions && d.decisions.length) {
+    html += `<div class="card">
+      <div class="card-header"><span class="icon">🏛️</span><h3>Decisions Made</h3></div>
+      ${d.decisions.map(dec => `<div class="decision-item">${esc(dec)}</div>`).join('')}
+    </div>`;
+  }
+
+  // Action items
+  if (d.action_items && d.action_items.length) {
+    html += `<div class="card">
+      <div class="card-header"><span class="icon">✅</span><h3>Action Items</h3></div>
+      ${d.action_items.map(a => `
+        <div class="action-item">
+          <div class="action-text">
+            ${esc(a.item)}
+            ${a.assignee ? `<div class="action-assignee">Owner: ${esc(a.assignee)}</div>` : ''}
+          </div>
+          <span class="badge badge-${a.priority}">${a.priority}</span>
+        </div>`).join('')}
+    </div>`;
+  }
+
+  // Transcript
+  html += `<div class="card">
+    <div class="card-header"><span class="icon">📝</span><h3>Full Transcript</h3></div>
+    <div class="transcript-text">${esc(d.transcript)}</div>
+  </div>`;
+
+  resultsEl.innerHTML = html;
+}
+
+// Export helpers
+document.getElementById('copy-md-btn').addEventListener('click', () => {
+  if (!lastResult) return;
+  navigator.clipboard.writeText(buildMarkdown(lastResult));
+  document.getElementById('copy-md-btn').textContent = 'Copied!';
+  setTimeout(() => { document.getElementById('copy-md-btn').textContent = 'Copy Markdown'; }, 2000);
+});
+
+document.getElementById('copy-transcript-btn').addEventListener('click', () => {
+  if (!lastResult) return;
+  navigator.clipboard.writeText(lastResult.transcript || '');
+  document.getElementById('copy-transcript-btn').textContent = 'Copied!';
+  setTimeout(() => { document.getElementById('copy-transcript-btn').textContent = 'Copy Transcript'; }, 2000);
+});
+
+function buildMarkdown(d) {
+  const mins = Math.floor(d.duration / 60), secs = Math.floor(d.duration % 60);
+  const lines = [
+    `# ${d.title}`, '',
+    `**Language:** ${(d.language||'').toUpperCase()}  |  **Duration:** ${mins ? mins+'m '+secs+'s' : secs+'s'}`, '',
+    '---', '', '## Key Points', '',
+    ...(d.key_points||[]).map(p => `- ${p}`),
+    '', '## Summary', '', d.summary || '', '',
+  ];
+  if (d.decisions && d.decisions.length) {
+    lines.push('## Decisions', '', ...(d.decisions.map(dec => `- ${dec}`)), '');
+  }
+  if (d.action_items && d.action_items.length) {
+    lines.push('## Action Items', '');
+    d.action_items.forEach(a => {
+      const assignee = a.assignee ? ` *(Owner: ${a.assignee})*` : '';
+      lines.push(`- \`[${a.priority}]\` ${a.item}${assignee}`);
+    });
+    lines.push('');
+  }
+  lines.push('---', '', '## Full Transcript', '', d.transcript || '');
+  return lines.join('\n');
+}
+
+function esc(s) {
+  const div = document.createElement('div');
+  div.textContent = String(s || '');
+  return div.innerHTML;
+}
+
+function showError(msg) { errorBox.textContent = msg; errorBox.style.display = 'block'; }
+function hideError()    { errorBox.style.display = 'none'; errorBox.textContent = ''; }
+</script>
+</body>
+</html>
