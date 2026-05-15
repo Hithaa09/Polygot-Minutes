@@ -1,17 +1,27 @@
 # Polyglot Minutes
 
-AI-powered meeting transcription and summarization. Upload any audio or video recording and get back a structured, AI-generated report: title, key points, narrative summary, decisions made, and action items with priority levels.
+AI-powered meeting transcription and summarization — runs 100% locally, no API keys required.
+
+Upload any audio or video recording and get back a structured report: meeting title, key points, narrative summary, decisions made, and action items with priority levels.
 
 ## Stack
 
 - **FastAPI** — async REST API with auto-generated OpenAPI docs
-- **OpenAI Whisper** — local on-device speech-to-text (no audio leaves your machine)
-- **OpenAI GPT-4o-mini** — AI analysis: title, summary, decisions, action items
+- **faster-whisper** — on-device speech-to-text, 2-4x faster than standard Whisper
+- **Ollama + Llama 3.2** — local LLM for AI analysis, no internet required
 - **Vanilla JS frontend** — served directly from FastAPI, no build step
 
 ## Setup
 
-### 1. Install dependencies
+### 1. Install Ollama
+
+Download from [ollama.com](https://ollama.com) and open the app, then pull the model:
+
+```bash
+ollama pull llama3.2
+```
+
+### 2. Install dependencies
 
 ```bash
 python3.11 -m venv venv
@@ -19,21 +29,23 @@ source venv/bin/activate
 pip install -r requirements.txt
 ```
 
-### 2. Configure environment
+### 3. Configure environment
 
 ```bash
 cp .env.example .env
-# Edit .env and add your OpenAI API key
 ```
 
+The defaults work out of the box — no keys to add:
+
 ```
-OPENAI_API_KEY=sk-...
-WHISPER_MODEL_SIZE=small   # tiny | base | small | medium | large
+WHISPER_MODEL_SIZE=small
+OLLAMA_URL=http://localhost:11434/v1
+OLLAMA_MODEL=llama3.2
 MAX_FILE_SIZE_MB=200
 PORT=8001
 ```
 
-### 3. Run
+### 4. Run
 
 ```bash
 python run.py
@@ -49,20 +61,26 @@ Interactive API docs: `http://localhost:8001/docs`
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| `GET`  | `/health` | Server status, model info, AI availability |
+| `GET`  | `/health` | Server status and model info |
 | `POST` | `/api/v1/transcribe` | Transcribe audio/video → text + segments |
-| `POST` | `/api/v1/analyze` | Analyze a transcript text with GPT |
+| `POST` | `/api/v1/analyze` | Analyze a transcript with Ollama |
 | `POST` | `/api/v1/process` | Full pipeline: transcribe + analyze |
 | `POST` | `/api/v1/export/markdown` | Full pipeline → download `.md` file |
 
-### Example: Full pipeline
+### Example: transcribe then analyze
 
 ```bash
-curl -X POST http://localhost:8001/api/v1/process \
+# Step 1 — transcribe
+curl -X POST http://localhost:8001/api/v1/transcribe \
   -F "file=@meeting.mp4" | python -m json.tool
+
+# Step 2 — analyze
+curl -X POST http://localhost:8001/api/v1/analyze \
+  -H "Content-Type: application/json" \
+  -d '{"transcript": "your transcript text here"}' | python -m json.tool
 ```
 
-Response shape:
+Response shape from `/api/v1/process`:
 
 ```json
 {
@@ -93,22 +111,22 @@ Video: `mp4` `mov` `webm` `avi` `mkv`
 
 ```
 app/
-├── config.py          # Pydantic Settings (reads .env)
-├── models.py          # Request/response schemas
-├── main.py            # FastAPI app factory + lifespan
+├── config.py              # Pydantic Settings (reads .env)
+├── models.py              # Request/response schemas
+├── main.py                # FastAPI app factory + lifespan
 ├── routers/
-│   └── meetings.py    # All API endpoints
+│   └── meetings.py        # All API endpoints
 └── services/
-    ├── transcription.py   # Whisper (thread-pool, async-safe)
-    └── summarization.py   # OpenAI GPT-4o-mini analysis
+    ├── transcription.py   # faster-whisper (async, thread-pool)
+    └── summarization.py   # Ollama via OpenAI-compatible API
 static/
-└── index.html         # Frontend (served by FastAPI)
-run.py                 # Entry point
+└── index.html             # Frontend (served by FastAPI)
+run.py                     # Entry point
 ```
 
 ## Notes
 
-- Whisper runs locally — audio never leaves your machine
-- GPT-4o-mini is used for analysis only (transcript text is sent to OpenAI)
-- Whisper model weights are downloaded automatically on first run (~140 MB for `small`)
-- Do not commit `.pt`/`.pth` files or `.env` — both are in `.gitignore`
+- Everything runs locally — no audio or text is ever sent to an external service
+- faster-whisper model weights are downloaded automatically on first run (~500 MB for `small`)
+- For better analysis quality, switch to a larger model: `ollama pull qwen2.5:7b` and set `OLLAMA_MODEL=qwen2.5:7b` in `.env`
+- Do not commit `.env` — it is already in `.gitignore`
