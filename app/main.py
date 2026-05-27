@@ -24,8 +24,18 @@ async def _check_ollama(ollama_url: str, model: str) -> None:
     base = f"{parsed.scheme}://{parsed.netloc}"
     try:
         async with httpx.AsyncClient(timeout=5.0) as client:
-            await client.get(f"{base}/api/tags")
-        logger.info("Ollama reachable at %s (model: %s)", base, model)
+            resp = await client.get(f"{base}/api/tags")
+        if resp.status_code == 200:
+            pulled = [m["name"].split(":")[0] for m in resp.json().get("models", [])]
+            model_base = model.split(":")[0]
+            if model_base not in pulled:
+                logger.warning(
+                    "Model '%s' not found in Ollama. Run: ollama pull %s", model, model
+                )
+            else:
+                logger.info("Ollama ready — model '%s' available.", model)
+        else:
+            logger.warning("Ollama responded with unexpected status %d.", resp.status_code)
     except Exception:
         logger.warning(
             "Ollama not reachable at %s — open the Ollama app before processing files.", base
