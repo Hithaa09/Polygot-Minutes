@@ -61,6 +61,11 @@ async def _save_upload(file: UploadFile, max_bytes: int) -> str:
         except OSError:
             pass
         raise
+
+    if total == 0:
+        os.unlink(tmp_path)
+        raise HTTPException(400, "Uploaded file is empty.")
+
     return tmp_path
 
 
