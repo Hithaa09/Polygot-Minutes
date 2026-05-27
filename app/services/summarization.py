@@ -1,6 +1,7 @@
 import json
 import logging
 import re
+import time
 from typing import Any
 
 from openai import AsyncOpenAI
@@ -58,6 +59,7 @@ async def analyze_meeting(transcript: str, ollama_url: str, model: str) -> dict[
 
     client = AsyncOpenAI(api_key="ollama", base_url=ollama_url, timeout=120.0)
 
+    t0 = time.perf_counter()
     try:
         response = await client.chat.completions.create(
             model=model,
@@ -77,6 +79,7 @@ async def analyze_meeting(transcript: str, ollama_url: str, model: str) -> dict[
             ) from exc
         raise
 
+    logger.info("Analysis done in %.1fs.", time.perf_counter() - t0)
     raw = (response.choices[0].message.content or "{}").strip()
 
     # Strip markdown code fences if the model wrapped the JSON (common with local LLMs)

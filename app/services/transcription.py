@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import time
 from typing import Any
 
 from faster_whisper import WhisperModel
@@ -38,4 +39,11 @@ def _transcribe_sync(model: WhisperModel, path: str) -> dict[str, Any]:
 async def transcribe_file(path: str, model_size: str) -> dict[str, Any]:
     model = load_model(model_size)
     loop = asyncio.get_running_loop()
-    return await loop.run_in_executor(None, _transcribe_sync, model, path)
+    t0 = time.perf_counter()
+    result = await loop.run_in_executor(None, _transcribe_sync, model, path)
+    elapsed = time.perf_counter() - t0
+    logger.info(
+        "Transcription done in %.1fs — %.1fs of audio, language: %s",
+        elapsed, result["duration"], result["language"],
+    )
+    return result
