@@ -9,25 +9,38 @@ logger = logging.getLogger(__name__)
 
 _SYSTEM_PROMPT = (
     "You are an expert meeting analyst. "
-    "Extract structured, actionable information from meeting transcripts with precision."
+    "Extract structured, actionable information from meeting transcripts with precision. "
+    "Always respond with valid JSON only."
 )
 
 _ANALYSIS_PROMPT = """\
-Analyze the following meeting transcript and return a JSON object with these exact fields:
+Analyze the meeting transcript below and return a single JSON object.
 
-- title: string — concise, descriptive meeting title (≤10 words)
-- key_points: array of 5–8 strings — the most important takeaways
-- summary: string — a 2–3 paragraph narrative summary covering what was discussed and why it matters
-- decisions: array of strings — explicit decisions made during the meeting (empty array if none)
-- action_items: array of objects, each with:
-    - item: string — a specific, concrete actionable task
-    - priority: "High" | "Medium" | "Low"
-    - assignee: string | null — person responsible if mentioned, otherwise null
+Required fields:
+{
+  "title": "<concise meeting title, max 10 words>",
+  "key_points": ["<takeaway 1>", "...", "<5 to 8 total>"],
+  "summary": "<2-3 paragraph narrative: what was discussed, key context, why it matters>",
+  "decisions": ["<explicit decision made>"],
+  "action_items": [
+    {
+      "item": "<specific, concrete task — not a vague observation>",
+      "priority": "High | Medium | Low",
+      "assignee": "<person responsible, or null if not mentioned>"
+    }
+  ]
+}
+
+Priority guide:
+- High: urgent deadlines, blockers, critical path items
+- Medium: important but not time-sensitive
+- Low: nice-to-have, longer-term
 
 Rules:
-- Return ONLY valid JSON, no markdown code blocks or extra text
-- action_items must be genuinely actionable (not vague observations)
-- If the transcript is short or unclear, still do your best
+- Return ONLY the JSON object — no markdown, no explanation, no code fences
+- decisions: use empty array [] if no explicit decisions were made
+- action_items: only include tasks someone actually needs to do
+- If the transcript is in a non-English language, still return the JSON in English
 
 Transcript:
 {transcript}"""
