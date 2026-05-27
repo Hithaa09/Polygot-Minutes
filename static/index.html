@@ -497,11 +497,12 @@ function renderResults(d) {
   const secs  = Math.floor(d.duration % 60);
   const dur   = mins ? `${mins}m ${secs}s` : `${secs}s`;
   const lang  = (d.language || 'unknown').toUpperCase();
+  const words = d.transcript ? d.transcript.trim().split(/\s+/).length.toLocaleString() : '0';
 
   let html = `
     <div class="result-title">
       <h2>${esc(d.title)}</h2>
-      <div class="meta">Language: ${lang} &nbsp;|&nbsp; Duration: ${dur}</div>
+      <div class="meta">Language: ${lang} &nbsp;|&nbsp; Duration: ${dur} &nbsp;|&nbsp; ${words} words</div>
     </div>`;
 
   // Key points
