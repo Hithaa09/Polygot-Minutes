@@ -130,3 +130,37 @@ run.py                     # Entry point
 - faster-whisper model weights are downloaded automatically on first run (~500 MB for `small`)
 - For better analysis quality, switch to a larger model: `ollama pull qwen2.5:7b` and set `OLLAMA_MODEL=qwen2.5:7b` in `.env`
 - Do not commit `.env` — it is already in `.gitignore`
+
+---
+
+## Troubleshooting
+
+**"Cannot reach Ollama"**  
+Open the Ollama app or run `ollama serve` in a terminal before starting the server.
+
+**"Model not found in Ollama"**  
+Run `ollama pull llama3.2` (or whichever model is set in `OLLAMA_MODEL`).
+
+**Transcription is slow**  
+Switch to a smaller model: set `WHISPER_MODEL_SIZE=tiny` in `.env`. Accuracy drops slightly but speed improves significantly.
+
+**Analysis output is malformed or incomplete**  
+Try a more capable model: `ollama pull qwen2.5:7b` and update `OLLAMA_MODEL` in `.env`.
+
+**Port already in use**  
+Change `PORT=8002` in `.env`, then open `http://localhost:8002`.
+
+---
+
+## Model Size Guide
+
+| Whisper Model | Speed | Accuracy | RAM |
+|---------------|-------|----------|-----|
+| `tiny`   | fastest | lower  | ~1 GB |
+| `small`  | fast    | good   | ~2 GB |
+| `medium` | slower  | better | ~5 GB |
+
+| Ollama Model | Quality | RAM |
+|--------------|---------|-----|
+| `llama3.2` (3B) | good for demos | ~3 GB |
+| `qwen2.5:7b`    | better structured output | ~5 GB |
