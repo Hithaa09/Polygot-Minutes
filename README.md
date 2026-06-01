@@ -1,4 +1,4 @@
-# Polyglot Minutes
+# Polygot Minutes
 
 AI-powered meeting transcription and summarization — runs 100% locally, no API keys required.
 
