@@ -4,6 +4,12 @@ AI-powered meeting transcription and summarization — runs 100% locally, no API
 
 Upload any audio or video recording and get back a structured report: meeting title, key points, narrative summary, decisions made, and action items with priority levels.
 
+## Why I built this
+Most meeting summarizers send your audio to external APIs. 
+I wanted something that runs entirely on-device — no data leaves 
+your machine. Built this to explore how far local models like 
+Whisper and Llama 3.2 could go without any cloud dependency.
+
 ## Stack
 
 - **FastAPI** — async REST API with auto-generated OpenAPI docs
